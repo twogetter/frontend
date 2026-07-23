@@ -199,7 +199,7 @@ docker exec bubbletea-mongodb-1 sh -c \
 채팅방은 상품(아티스트) 등록 시 자동 생성되지만, 구독 활성화(결제 성공)가 있어야 팬이 입장한다.
 결제(Toss)는 **테스트모드**로 설정돼 있으나 브랜드페이 결제수단 등록의 웹훅이 localhost 에 도달하지 못해
 로컬에서는 자동 입장이 제한된다. 자세한 내용과 우회책은
-[`backend/docs/frontend-backend-integration-analysis.md`](../backend/docs/frontend-backend-integration-analysis.md) 참고.
+[`docs/frontend-backend-integration-analysis.md`](./docs/frontend-backend-integration-analysis.md) 참고.
 
 ---
 
@@ -213,5 +213,5 @@ docker exec bubbletea-mongodb-1 sh -c \
 
 ## 참고 문서
 
-- [`backend/docs/frontend-backend-integration-analysis.md`](../backend/docs/frontend-backend-integration-analysis.md) — 남은 후속 ↔ 프론트 연결점
-- [`backend/gateway-server/docs/payment-gateway-routing.md`](../backend/gateway-server/docs/payment-gateway-routing.md) — 결제 게이트웨이 라우팅(보류)
+- [`docs/frontend-backend-integration-analysis.md`](./docs/frontend-backend-integration-analysis.md) — 남은 후속 ↔ 프론트 연결점
+- [`docs/payment-gateway-routing.md`](./docs/payment-gateway-routing.md) — 결제 게이트웨이 라우팅(보류)
