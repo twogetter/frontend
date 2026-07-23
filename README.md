@@ -171,7 +171,8 @@ cd /tmp/ws-tree
 docker build -f chat-service/Dockerfile -t chat-ws:latest .
 
 # 3) 기존 chat-service 컨테이너를 WS 이미지로 교체
-docker stop chat-service && docker rm chat-service
+#    -f 로 실행/정지 여부와 무관하게 강제 제거(이름 충돌 방지)
+docker rm -f chat-service 2>/dev/null || true
 docker run -d --name chat-service --hostname chat-service \
   --network bubbletea_bubbletea-net -p 8600:8600 \
   -e CONFIG_SERVER_URL=http://config-server:8888 \
@@ -179,6 +180,11 @@ docker run -d --name chat-service --hostname chat-service \
   -e JWT_SECRET=bubbletea-local-shared-jwt-secret-please-change-me-32byte-min \
   chat-ws:latest
 ```
+
+> **주의**: 이 WS 컨테이너는 compose 밖에서 수동 실행되므로, 이후 `docker compose down`/`up` 또는 Docker 재시작으로
+> 네트워크가 재생성되면 이 컨테이너는 **stale network 참조로 재시작이 안 된다**(`network ... not found`).
+> 그때는 `docker rm -f chat-service` 후 위 `docker run` 을 다시 실행한다(네트워크 이름 `bubbletea_bubbletea-net` 은 동일).
+> 또한 `docker compose up` 은 비-WS `chat-service` 를 다시 만들므로, compose 재기동 후에는 3)번을 다시 수행한다.
 
 > `JWT_SECRET` 은 gateway·auth 와 동일해야 CONNECT 시 토큰 검증이 성립한다(compose 기본값과 동일).
 > WS 브랜치가 `develop` 에 머지되면 이 절차 없이 일반 compose 빌드로 `/ws` 가 내장된다.
