@@ -134,6 +134,8 @@ npm run dev        # http://localhost:3000
 GATEWAY_URL=http://localhost:8080
 NOTIFICATION_URL=http://localhost:8500
 NEXT_PUBLIC_CHAT_WS_URL=ws://localhost:8600/ws
+# 브랜드페이 등록 화면(payment-service 서버렌더)은 브라우저가 직접 열므로 NEXT_PUBLIC_ 이어야 한다.
+NEXT_PUBLIC_PAYMENT_URL=http://localhost:8300
 ```
 
 ### 화면 / 라우트
@@ -153,41 +155,22 @@ NEXT_PUBLIC_CHAT_WS_URL=ws://localhost:8600/ws
 
 ---
 
-## 3. 실시간 채팅 (WebSocket) 안내
+## 3. 실시간 채팅 (WebSocket)
 
-채팅은 **REST 전송 + WebSocket(STOMP) 실시간 수신** 하이브리드다.
+채팅은 **REST 전송 + WebSocket(STOMP) 실시간 수신** 하이브리드다. WebSocket 은 **chat-service 에 기본 내장**되어
+있어 별도 절차 없이 `docker compose up` 만으로 동작한다.
 
-- 실 WebSocket 코드는 백엔드 브랜치 **`feat/58-chat-webSocket`** 에 있다(아직 `develop` 미머지).
-- 기본 `docker compose` 로 빌드한 chat-service 에는 `/ws` 엔드포인트가 **없어** 실시간 수신이 동작하지 않고 **폴링 폴백**으로만 동작한다.
-- 실시간을 확인하려면 chat-service 를 WS 브랜치로 실행한다:
+- **필수 조건**: chat-service 의 STOMP 인증(`JwtProvider`)이 `jwt.secret` 을 요구한다.
+  `docker-compose.yml` 의 chat-service 에 `JWT_SECRET`(gateway·auth 와 동일한 공유 시크릿)이 이미 주입돼 있다 —
+  이 값이 없으면 chat-service 가 `jwt.secret 프로퍼티 누락` 으로 부팅에 실패한다.
+- **STOMP 계약** (프론트 `app/lib/chatSocket.ts` 가 이에 맞춰 구현됨):
+  - 엔드포인트 `ws://localhost:8600/ws`, CONNECT 헤더 `Authorization: Bearer <accessToken>`
+  - 팬 구독 `/sub/rooms/{roomId}/artist`, 아티스트 구독 `/sub/rooms/{roomId}/fan`
+  - 메시지 전송은 REST(`POST /api/chat/rooms/{id}/messages`) → 커밋 후 상대 대역으로 broadcast
+- 프론트는 WS 로 실시간 수신하고, 연결이 끊기면 **폴링으로 폴백**한다(채팅방 우측 `● 실시간`/`○ 폴링` 배지).
 
-```bash
-# 1) WS 브랜치를 worktree 로 받기
-cd backend
-git worktree add /tmp/ws-tree origin/feat/58-chat-webSocket
-
-# 2) chat-service 이미지 빌드 (context = worktree 루트)
-cd /tmp/ws-tree
-docker build -f chat-service/Dockerfile -t chat-ws:latest .
-
-# 3) 기존 chat-service 컨테이너를 WS 이미지로 교체
-#    -f 로 실행/정지 여부와 무관하게 강제 제거(이름 충돌 방지)
-docker rm -f chat-service 2>/dev/null || true
-docker run -d --name chat-service --hostname chat-service \
-  --network bubbletea_bubbletea-net -p 8600:8600 \
-  -e CONFIG_SERVER_URL=http://config-server:8888 \
-  -e EUREKA_URL=http://eureka-server:8761/eureka/ \
-  -e JWT_SECRET=bubbletea-local-shared-jwt-secret-please-change-me-32byte-min \
-  chat-ws:latest
-```
-
-> **주의**: 이 WS 컨테이너는 compose 밖에서 수동 실행되므로, 이후 `docker compose down`/`up` 또는 Docker 재시작으로
-> 네트워크가 재생성되면 이 컨테이너는 **stale network 참조로 재시작이 안 된다**(`network ... not found`).
-> 그때는 `docker rm -f chat-service` 후 위 `docker run` 을 다시 실행한다(네트워크 이름 `bubbletea_bubbletea-net` 은 동일).
-> 또한 `docker compose up` 은 비-WS `chat-service` 를 다시 만들므로, compose 재기동 후에는 3)번을 다시 수행한다.
-
-> `JWT_SECRET` 은 gateway·auth 와 동일해야 CONNECT 시 토큰 검증이 성립한다(compose 기본값과 동일).
-> WS 브랜치가 `develop` 에 머지되면 이 절차 없이 일반 compose 빌드로 `/ws` 가 내장된다.
+> 게이트웨이는 WebSocket 라우팅이 없어 프론트는 chat-service(8600) 에 **직접** 붙는다.
+> 도메인/게이트웨이 경유가 필요하면 `NEXT_PUBLIC_CHAT_WS_URL` 로 지정한다.
 
 ---
 
@@ -203,17 +186,37 @@ docker exec bubbletea-mongodb-1 sh -c \
 ```
 
 채팅방은 상품(아티스트) 등록 시 자동 생성되지만, 구독 활성화(결제 성공)가 있어야 팬이 입장한다.
-결제(Toss)는 **테스트모드**로 설정돼 있으나 브랜드페이 결제수단 등록의 웹훅이 localhost 에 도달하지 못해
-로컬에서는 자동 입장이 제한된다. 자세한 내용과 우회책은
-[`docs/frontend-backend-integration-analysis.md`](./docs/frontend-backend-integration-analysis.md) 참고.
+
+## 5. 결제수단 등록 (구독 전 필수)
+
+결제(Toss)는 **테스트모드**다. 브랜드페이 카드 등록은 payment-service 가 서버렌더하는 페이지에서 진행하고,
+프론트 `/mypage/payment-methods` 에서 결제수단을 앱으로 끌어온다.
+
+1. `/mypage/payment-methods` → **카드 등록 · 약관동의 (브랜드페이)** — 새 창으로 `http://localhost:8300/brandpay/checkout?userId={memberId}` 가 열린다.
+2. 새 창에서 **결제수단추가** → 토스 인증 후 테스트 카드 등록. (최초 1회는 인증 리다이렉트로
+   `/brandpay/callback-auth` JSON 화면에 도달한다 — 뒤로가기로 돌아와 다시 누르면 된다.)
+3. 같은 창에서 **정기 자동결제 약관동의** — 이걸 해야 다음 단계가 통과한다.
+4. 앱으로 돌아와 **등록한 카드 불러오기** → 카드별 **정기결제로 지정**.
+
+> ⚠️ Toss 의 `METHOD_UPDATED` 웹훅은 `localhost:8300` 에 도달하지 못한다. 그래서 카드 등록 결과는
+> 웹훅이 아니라 **`POST /api/payments/methods/sync`(온디맨드 동기화)** 로 반영한다. 브랜드페이 창은
+> 카드 등록 직후 이 엔드포인트를 자체 호출하며, 실패했을 때를 위해 앱에도 "등록한 카드 불러오기"
+> 버튼을 둔다. 웹훅 경로 자체를 검증하려면 ngrok 등 공개 터널이 필요하다.
+
+> ⚠️ 구독 주문은 **`type=BILLING` 카드만** 승인한다(`BillingService.createReadyPayment`). 동기화된 카드는
+> `NORMAL` 로 저장되므로 4번의 "정기결제로 지정"을 반드시 거쳐야 한다. `/subscribe/[id]` 는 BILLING 카드만
+> 선택지로 노출한다.
+
+자세한 배경은 [`docs/frontend-backend-integration-analysis.md`](./docs/frontend-backend-integration-analysis.md) 참고.
 
 ---
 
-## 5. 트러블슈팅
+## 6. 트러블슈팅
 
 - **`npm run dev` 중 `npm run build` 를 돌리지 말 것** — 같은 `.next` 캐시를 덮어 `Cannot find module './xxx.js'` 로 깨진다. 깨졌으면 `rm -rf .next` 후 dev 재시작.
 - **product-service 500 / Mongo Authentication failed** — `MONGO_APP_PASSWORD` 가 config-repo `product-service.yml` 의 값(`product_pass`)과 불일치. `.env` 를 맞추고 Mongo 볼륨을 재생성하거나 `product_user` 비밀번호를 갱신.
 - **auth/user/gateway 부팅 실패** — config-repo 에 해당 서비스 설정 공백. `docker-compose.yml` 의 env 오버라이드가 있어야 부팅된다(이미 포함).
+- **chat-service 부팅 실패 `jwt.secret 프로퍼티 누락`** — chat-service 의 WebSocket 인증이 `JWT_SECRET` 을 요구한다. `docker-compose.yml` 의 chat-service env 에 `JWT_SECRET`(gateway·auth 와 동일값)이 있어야 한다(이미 포함).
 - **알림 SSE 가 안 붙음** — notification-service(8500) 기동 여부 확인. 프론트는 `/stream/notifications/connect` 로 8500 에 직접 붙는다.
 - **Docker 데몬 미실행** — 어떤 서비스도 부팅 불가. Docker Desktop 을 먼저 켠다.
 

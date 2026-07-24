@@ -22,10 +22,23 @@
 - `app/mypage/payment-methods/page.tsx` — 결제수단 목록/등록 진입.
 - **핵심**: 프론트가 Toss SDK 를 직접 구현할 필요 없음 → payment-service 의 `/brandpay/checkout` 페이지로 **핸드오프**하는 것이 연결점.
 
-**남은 작업 / 로컬 제약**
-- ⚠️ **웹훅 미도달**: `syncPaymentMethods` 는 Toss→`/brandpay/webhooks/toss-brandpay` 웹훅으로 트리거되는데 Toss 가 `localhost:8300` 에 도달 못함. 로컬에선 (a) ngrok 등 **공개 터널**로 웹훅 수신, 또는 (b) 카드 등록 직후 **`syncPaymentMethods(customerKey)` 수동 호출**로 대체 필요.
-- ⚠️ 브랜드페이 체크아웃은 `orderId` 파라미터 전제(순수 카드등록 진입점 없음) → 등록 전용 흐름이면 별도 정리 필요.
-- ✅ 테스트모드 자체는 설정 완료. 프론트 연결은 "결제수단 등록 → `/brandpay/checkout` 핸드오프 + 복귀 후 목록 재조회" 로 구현 가능(터널/수동 sync 전제).
+**해소 (2026-07-24, sync 엔드포인트 방식 채택)**
+- ✅ **웹훅 미도달** → `POST /api/v1/payment-methods/sync` (게이트웨이: `/api/payments/methods/sync`) 추가.
+  `X-User-Id` 로 customerKey 를 해석해 `syncPaymentMethods` 를 호출하고 갱신된 목록을 반환한다.
+  웹훅은 그대로 두고 **pull 기반 정합성 보정**을 병행하는 구조라 운영에서도 웹훅 유실 대비로 유효하다.
+  `/brandpay/checkout` 은 카드 등록(`addPaymentMethod`) 직후 이 엔드포인트를 자체 호출한다.
+- ✅ **`orderId` 필수 → 선택**(`ViewController.brandPayPage`). "주문이 있어야 카드 등록, 카드가 있어야 주문"
+  순환 의존이 풀려 카드 등록 전용 진입이 가능해졌다.
+- ✅ 프론트 `/mypage/payment-methods` 에 브랜드페이 핸드오프 · "등록한 카드 불러오기"(sync) ·
+  "정기결제로 지정"(`POST /api/payments/methods/{id}/billing`) 배선 완료.
+- ⚠️ **`type=BILLING` 함정**: `syncPaymentMethods` 는 카드를 전부 `NORMAL` 로 저장하는데
+  (`BrandpayService.mapCardMethods`), `BillingService.createReadyPayment` 는 `BILLING` 이 아니면
+  `REGULAR_PAYMENT_METHOD_REQUIRED` 로 거절한다. 승격은 `updatePaymentMethodBilling` 이 담당하며
+  `UserBrandpayAuth.isBillingAgreed` (브랜드페이 창의 "정기 자동결제 약관동의")를 선행 요구한다.
+  `/subscribe/[id]` 는 BILLING 카드만 노출하도록 필터링했다.
+- ↩️ 웹훅 경로 **자체**를 검증하려면 여전히 ngrok 등 공개 터널이 필요하다(sync 는 웹훅 핸들러를 우회하므로).
+  다만 웹훅 URL 이 상점 단위 전역 설정이라 팀 동시 사용이 불가하고 재현성이 낮아, 상시 개발 루프가 아닌
+  일회성 계약 검증 용도로 한정할 것.
 - 대안: 정기결제가 아닌 단건은 `/widget/*`(Toss 결제위젯, 테스트카드로 로컬 완결 가능)이 더 간단 — 구독 모델과는 불일치.
 
 ---
@@ -110,7 +123,8 @@
 
 ## 우선순위 제안
 
-1. **Toss 테스트 결제 로컬 완결** — 웹훅 터널(또는 수동 sync) + 프론트 `/brandpay/checkout` 핸드오프 → 구독 성공→활성화→채팅방 자동 생성까지 **엔드투엔드 완성**(가장 임팩트 큼).
+1. ~~**Toss 테스트 결제 로컬 완결**~~ — sync 엔드포인트 + 프론트 배선으로 **코드는 완료**. 실제 Toss 인증까지
+   태우는 **E2E 실행 검증은 미완**(1번 항목 참고).
 2. **WS 브랜치 develop 머지** — 임시 컨테이너 제거, 정식 빌드.
 3. **config-repo 이관** — 배포 가능 상태 확보.
 4. 아티스트 채팅 참여자/화면, 상품 ACTIVE 스케줄러.

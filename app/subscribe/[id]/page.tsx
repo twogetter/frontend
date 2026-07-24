@@ -33,7 +33,9 @@ function Subscribe({ pid }: { pid: number }) {
   useEffect(() => {
     if (!user) return;
     apiData<PaymentMethod[]>(`/api/payments/methods/${user.memberId}`)
-      .then((m) => {
+      .then((all) => {
+        // 정기 구독은 BILLING 으로 지정된 카드만 승인된다(payment-service BillingService).
+        const m = all.filter((x) => x.type === "BILLING");
         setMethods(m);
         const def = m.find((x) => x.isDefault) ?? m[0];
         if (def) setSelected(def.id);
@@ -102,10 +104,19 @@ function Subscribe({ pid }: { pid: number }) {
       {loading ? (
         <div className="spinner" />
       ) : methods.length === 0 ? (
-        <div className="alert alert-info">
-          등록된 결제수단이 없습니다. 결제수단 등록(브랜드페이)은 준비 중입니다. 등록 후 구독을 진행해
-          주세요.
-        </div>
+        <>
+          <div className="alert alert-info">
+            정기결제로 지정된 카드가 없습니다. 결제수단 화면에서 카드를 등록하고 정기결제로 지정한 뒤
+            다시 시도해 주세요.
+          </div>
+          <button
+            className="btn btn-ghost btn-block"
+            style={{ marginBottom: 20 }}
+            onClick={() => router.push("/mypage/payment-methods")}
+          >
+            결제수단 관리로 이동
+          </button>
+        </>
       ) : (
         <div className="stack" style={{ marginBottom: 20 }}>
           {methods.map((m) => (

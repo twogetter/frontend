@@ -1,10 +1,8 @@
 {
-  "/chat/page": "app/chat/page.js",
-  "/chat/[roomId]/page": "app/chat/[roomId]/page.js",
-  "/notifications/page": "app/notifications/page.js",
-  "/mypage/subscriptions/page": "app/mypage/subscriptions/page.js",
-  "/search/page": "app/search/page.js",
   "/page": "app/page.js",
-  "/products/[id]/page": "app/products/[id]/page.js",
-  "/subscribe/[id]/page": "app/subscribe/[id]/page.js"
+  "/subscribe/[id]/page": "app/subscribe/[id]/page.js",
+  "/mypage/payment-methods/page": "app/mypage/payment-methods/page.js",
+  "/login/page": "app/login/page.js",
+  "/mypage/subscriptions/page": "app/mypage/subscriptions/page.js",
+  "/notifications/page": "app/notifications/page.js"
 }
