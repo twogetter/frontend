@@ -4,13 +4,22 @@ import BrandpayCheckout from '../../components/brandpaycheckout';
 export default async function BrandpayCheckoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string; subscriptionId?: string; name?: string; price?: string }>;
+  searchParams: Promise<{
+    orderId?: string;
+    subscriptionId?: string;
+    name?: string;
+    price?: string;
+    selectedMethodId?: string;
+    selectedMaskedNumber?: string;
+  }>;
 }) {
   const params = await searchParams;
   const orderId = Number(params.orderId ?? 0);
   const subscriptionId = Number(params.subscriptionId ?? 0);
   const name = params.name ?? '구독권';
   const price = Number(params.price ?? 0);
+  const selectedMethodId = params.selectedMethodId ? Number(params.selectedMethodId) : null;
+  const selectedMaskedNumber = params.selectedMaskedNumber ?? null;
 
   if (!orderId || !price) {
     return (
@@ -54,7 +63,13 @@ export default async function BrandpayCheckoutPage({
           저장된 Brandpay 카드로 결제를 진행하거나 새 결제수단을 추가하세요.
         </p>
 
-        <BrandpayCheckout orderId={orderId} productName={name} amount={price} />
+        <BrandpayCheckout
+          orderId={orderId}
+          productName={name}
+          amount={price}
+          selectedMethodId={selectedMethodId}
+          selectedMaskedNumber={selectedMaskedNumber}
+        />
       </div>
     </Guard>
   );

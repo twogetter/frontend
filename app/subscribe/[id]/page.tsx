@@ -54,6 +54,7 @@ function Subscribe({ pid }: { pid: number }) {
     setBusy(true);
     setError(null);
     try {
+      const selectedMethod = methods.find((m) => m.id === selected);
       const res = await apiFetch<ApiResponse<OrderResult>>("/api/v1/orders/subscriptions", {
         method: "POST",
         headers: { "Idempotency-Key": uuid() },
@@ -61,7 +62,7 @@ function Subscribe({ pid }: { pid: number }) {
       });
       const order = res.data;
       router.push(
-        `/payment/brandpay-checkout?orderId=${order.orderId}&subscriptionId=${order.subscriptionId}&name=${encodeURIComponent(name)}&price=${price}`
+        `/payment/brandpay-checkout?orderId=${order.orderId}&subscriptionId=${order.subscriptionId}&name=${encodeURIComponent(name)}&price=${price}&selectedMethodId=${selected}&selectedMaskedNumber=${encodeURIComponent(selectedMethod?.maskedNumber ?? "")}`
       );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "구독 신청에 실패했습니다.");

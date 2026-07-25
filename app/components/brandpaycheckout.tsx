@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { apiData, apiFetch } from '../lib/api';
 import type { BrandpayInstance } from '../lib/toss-types';
@@ -17,6 +17,8 @@ interface BrandpayCheckoutProps {
   orderId: number;
   productName: string;
   amount: number;
+  selectedMethodId?: number | null;
+  selectedMaskedNumber?: string | null;
   onSuccess?: () => void;
   onError?: (error: string) => void;
   hideDirectPayment?: boolean;
@@ -26,6 +28,8 @@ export default function BrandPayCheckout({
   orderId,
   productName,
   amount,
+  selectedMethodId,
+  selectedMaskedNumber,
   onSuccess,
   onError,
   hideDirectPayment = false,
@@ -36,7 +40,6 @@ export default function BrandPayCheckout({
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showFullMenu, setShowFullMenu] = useState(false);
   const brandpayRef = useRef<BrandpayInstance | null>(null);
 
   useEffect(() => {
@@ -76,13 +79,15 @@ export default function BrandPayCheckout({
           });
         }
 
-        // 카드가 있으면 첫 번째 카드 선택
-        if (initData.cards.length > 0) {
+        const selectedCardFromQuery = selectedMaskedNumber
+          ? initData.cards.find((card) => card.maskedNumber === selectedMaskedNumber)
+          : null;
+
+        // 전달받은 카드가 있으면 우선 선택하고, 없으면 첫 번째 카드 선택
+        if (selectedCardFromQuery) {
+          setSelectedCardId(selectedCardFromQuery.id);
+        } else if (initData.cards.length > 0) {
           setSelectedCardId(initData.cards[0].id);
-          setShowFullMenu(true);
-        } else {
-          // 카드가 없으면 바로 추가 화면
-          setShowFullMenu(false);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'SDK 로드 실패';
@@ -94,14 +99,19 @@ export default function BrandPayCheckout({
     };
 
     loadTossSDK();
-  }, [user, onError]);
+  }, [user, onError, selectedMethodId, selectedMaskedNumber]);
+
+  const selectedCard = useMemo(
+    () => init?.cards.find((card) => card.id === selectedCardId) ?? init?.cards[0] ?? null,
+    [init, selectedCardId]
+  );
 
   const generateRandomString = () => {
     return window.btoa(Math.random().toString()).slice(0, 20);
   };
 
   const handleDirectPayment = async () => {
-    if (!selectedCardId || !init || !brandpayRef.current) {
+    if (!selectedCardId || !init || !brandpayRef.current || selectedMethodId == null) {
       setError('카드를 선택해 주세요.');
       return;
     }
@@ -123,7 +133,7 @@ export default function BrandPayCheckout({
             amount,
             currency,
             customerKey: init.customerKey,
-            selectedMethodId: Number(selectedCardId),
+            selectedMethodId,
           },
           headers: {
             'X-User-Id': String(user!.memberId),
@@ -146,8 +156,6 @@ export default function BrandPayCheckout({
         failUrl: `${baseUrl}/payment/fail?orderId=${orderId}`,
         customerName: user!.nickname || '고객',
       });
-
-      onSuccess?.();
     } catch (err) {
       const msg = err instanceof Error ? err.message : '결제 처리 중 오류가 발생했습니다.';
       setError(msg);
@@ -169,8 +177,7 @@ export default function BrandPayCheckout({
     return <div className="alert alert-error">BrandPay를 초기화할 수 없습니다.</div>;
   }
 
-  // 카드가 없으면 추가 화면만 표시
-  if (init.cards.length === 0 && !showFullMenu) {
+  if (init.cards.length === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div
@@ -195,51 +202,29 @@ export default function BrandPayCheckout({
     );
   }
 
-  // 전체 메뉴
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* 카드 선택 */}
-      {init.cards.length > 0 && (
-        <div style={{ padding: 15, border: '1px solid #e5e8eb', borderRadius: 8 }}>
-          <p style={{ fontWeight: 'bold', marginBottom: 10, color: '#4e5968', fontSize: 14 }}>
-            결제하실 카드를 선택해 주세요:
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {init.cards.map((card) => (
-              <label
-                key={card.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: 8,
-                  cursor: 'pointer',
-                  borderRadius: 4,
-                  backgroundColor: selectedCardId === card.id ? '#f0f5ff' : 'transparent',
-                }}
-              >
-                <input
-                  type="radio"
-                  name="payment-card"
-                  value={card.id}
-                  checked={selectedCardId === card.id}
-                  onChange={(e) => setSelectedCardId(e.target.value)}
-                  style={{ cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: 15, color: '#333d4b' }}>
-                  {card.displayName} ({card.maskedNumber})
-                </span>
-              </label>
-            ))}
-          </div>
+      <div className="card" style={{ padding: 16 }}>
+        <div className="row-main">
+          <div className="row-title">{selectedCard?.displayName ?? '선택된 카드'}</div>
+          <div className="row-sub">{selectedCard?.maskedNumber ?? '카드 정보가 없습니다.'}</div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="spinner" />
+      ) : null}
+
+      {!selectedCard && (
+        <div className="alert alert-info">
+          선택된 카드가 없습니다. 결제수단에서 카드를 먼저 선택해 주세요.
         </div>
       )}
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {/* 주요 기능 버튼들 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {!hideDirectPayment && init.cards.length > 0 && (
+      {!hideDirectPayment && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <button
             className="btn btn-primary btn-block"
             onClick={handleDirectPayment}
@@ -248,21 +233,8 @@ export default function BrandPayCheckout({
           >
             {processing ? '결제 중…' : `선택한 카드로 ${amount.toLocaleString()}원 결제하기`}
           </button>
-        )}
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 8,
-            marginTop: 8,
-            paddingTop: 12,
-            borderTop: '1px solid #e5e8eb',
-          }}
-        >
         </div>
-
-      </div>
+      )}
     </div>
   );
 }
