@@ -28,20 +28,25 @@ function Subscribe({ pid }: { pid: number }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<OrderResult | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    apiData<PaymentMethod[]>(`/api/payments/methods/${user.memberId}`)
-      .then((all) => {
-        // 정기 구독은 BILLING 으로 지정된 카드만 승인된다(payment-service BillingService).
-        const m = all.filter((x) => x.type === "BILLING");
-        setMethods(m);
-        const def = m.find((x) => x.isDefault) ?? m[0];
-        if (def) setSelected(def.id);
-      })
-      .catch(() => setMethods([]))
-      .finally(() => setLoading(false));
+    apiData<PaymentMethod[]>(`/api/payment-methods/${user.memberId}`)
+        .then((result) => {
+          const all = result || [];
+
+          const m = all.filter((x: PaymentMethod) => x.type === "BILLING");
+          setMethods(m);
+
+          const def = m.find((x: PaymentMethod) => x.isDefault) ?? m[0];
+          if (def) setSelected(def.id);
+        })
+        .catch(() => {
+          setMethods([]);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
   }, [user]);
 
   async function subscribe() {
@@ -49,39 +54,21 @@ function Subscribe({ pid }: { pid: number }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await apiFetch<ApiResponse<OrderResult>>("/api/orders/subscriptions", {
+      const selectedMethod = methods.find((m) => m.id === selected);
+      const res = await apiFetch<ApiResponse<OrderResult>>("/api/v1/orders/subscriptions", {
         method: "POST",
         headers: { "Idempotency-Key": uuid() },
         body: { productId: pid, paymentMethodId: selected },
       });
-      setDone(res.data);
+      const order = res.data;
+      router.push(
+        `/payment/brandpay-checkout?orderId=${order.orderId}&subscriptionId=${order.subscriptionId}&name=${encodeURIComponent(name)}&price=${price}&selectedMethodId=${selected}&selectedMaskedNumber=${encodeURIComponent(selectedMethod?.maskedNumber ?? "")}`
+      );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "구독 신청에 실패했습니다.");
     } finally {
       setBusy(false);
     }
-  }
-
-  if (done) {
-    return (
-      <div className="container-narrow">
-        <div className="card" style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 44, marginBottom: 8 }}>🎉</div>
-          <h2>구독 신청이 접수되었어요</h2>
-          <p className="subtitle">
-            결제가 확인되면 채팅이 열립니다. 잠시 후 내 구독에서 상태를 확인하세요.
-          </p>
-          <div className="stack">
-            <button className="btn btn-primary" onClick={() => router.push("/mypage/subscriptions")}>
-              내 구독 보기
-            </button>
-            <button className="btn btn-ghost" onClick={() => router.push("/")}>
-              계속 둘러보기
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (

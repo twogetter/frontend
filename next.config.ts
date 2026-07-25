@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
         source: "/stream/notifications/:path*",
         destination: `${NOTIFICATION}/api/notifications/:path*`,
       },
+      // 브랜드페이 콜백/인증 API는 /brandpay 경로로 들어오므로 게이트웨이로 프록시한다.
+      { source: "/brandpay/:path*", destination: `${GATEWAY}/brandpay/:path*` },
       // 그 외 모든 API 는 게이트웨이 경유(JWT→X-User-Id 주입).
       { source: "/api/:path*", destination: `${GATEWAY}/api/:path*` },
     ];

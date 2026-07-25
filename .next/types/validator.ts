@@ -108,6 +108,33 @@ type LayoutConfig<Route extends LayoutRoutes = LayoutRoutes> = {
   type __Unused = __Check
 }
 
+// Validate ../../app/payment/callback-auth/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/payment/callback-auth">> = Specific
+  const handler = {} as typeof import("../../app/payment/callback-auth/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/payment/fail/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/payment/fail">> = Specific
+  const handler = {} as typeof import("../../app/payment/fail/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
+// Validate ../../app/payment/success/page.tsx
+{
+  type __IsExpected<Specific extends AppPageConfig<"/payment/success">> = Specific
+  const handler = {} as typeof import("../../app/payment/success/page.js")
+  type __Check = __IsExpected<typeof handler>
+  // @ts-ignore
+  type __Unused = __Check
+}
+
 // Validate ../../app/products/[id]/page.tsx
 {
   type __IsExpected<Specific extends AppPageConfig<"/products/[id]">> = Specific
