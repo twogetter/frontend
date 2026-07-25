@@ -1,4 +1,4 @@
-// File: /Users/wz9384/Documents/GitHub/twogetter/frontend/app/notifications/page.tsx
+// File: /Users/jihoon/Developer/bubble-tea/frontend/app/notifications/page.tsx
 import * as entry from '../../../../app/notifications/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

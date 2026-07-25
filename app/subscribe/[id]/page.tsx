@@ -22,6 +22,7 @@ function Subscribe({ pid }: { pid: number }) {
   const { user } = useAuth();
   const name = q.get("name") ?? "구독권";
   const price = Number(q.get("price") ?? 0);
+  const paymentApiUrl = process.env.NEXT_PUBLIC_PAYMENT_API_URL ?? "http://localhost:8300";
 
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
@@ -32,12 +33,16 @@ function Subscribe({ pid }: { pid: number }) {
 
   useEffect(() => {
     if (!user) return;
-    apiData<PaymentMethod[]>(`/api/payments/methods/${user.memberId}`)
-      .then((all) => {
+    fetch(`${paymentApiUrl}/api/v1/payment-methods/${user.memberId}`, {
+      headers: { "X-User-Id": String(user.memberId) },
+    })
+      .then((res) => res.json())
+      .then((result) => {
+        const all = result.data || [];
         // 정기 구독은 BILLING 으로 지정된 카드만 승인된다(payment-service BillingService).
-        const m = all.filter((x) => x.type === "BILLING");
+        const m = all.filter((x: PaymentMethod) => x.type === "BILLING");
         setMethods(m);
-        const def = m.find((x) => x.isDefault) ?? m[0];
+        const def = m.find((x: PaymentMethod) => x.isDefault) ?? m[0];
         if (def) setSelected(def.id);
       })
       .catch(() => setMethods([]))
