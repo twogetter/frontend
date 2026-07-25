@@ -185,18 +185,12 @@ function PaymentMethods() {
 
       await brandpay.requestBillingAuth();
 
-      const response = await fetch(
-        `${customerInfo.redirectUrl}/billing-auth/success`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ customerKey: customerInfo.customerKey }),
-        }
-      );
-
-      if (response.ok) {
-        setNotice('정기결제 인증이 완료되었습니다.');
-      }
+      await apiFetch<string>(`/brandpay/billing-auth/success`, {
+        method: "POST",
+        body: { customerKey: customerInfo.customerKey },
+      });
+      alert('정기결제 인증이 완료되었습니다.');
+      setShowBrandpay(false);
     } catch (error) {
       console.error('정기결제 인증 실패:', error);
       setError('인증 중 오류가 발생했습니다.');
@@ -221,27 +215,14 @@ function PaymentMethods() {
         throw new Error("customerKey를 찾을 수 없습니다.");
       }
 
-      const response = await fetch(
-        `${targetCustomerInfo.redirectUrl}/billing-auth/terminate`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            customerKey: targetCustomerInfo.customerKey,
-          }),
-        }
-      );
-
-      if (response.ok) {
-        setNotice('정기 자동결제가 정상적으로 해지되었습니다.');
-        await sync();
-        await load();
-      } else {
-        const errorMsg = await response.text();
-        setError('해지 실패: ' + errorMsg);
-      }
+      await apiFetch<string>(`/brandpay/billing-auth/terminate`, {
+        method: "POST",
+        body: { customerKey: targetCustomerInfo.customerKey },
+      });
+      alert('정기 자동결제가 정상적으로 해지되었습니다.');
+      setShowBrandpay(false);
+      await sync();
+      await load();
     } catch (error) {
       console.error('해지 요청 중 오류 발생:', error);
       setError('서버 통신 중 오류가 발생했습니다.');
@@ -255,7 +236,7 @@ function PaymentMethods() {
     setNotice(null);
     try {
       if (!user) return null;
-      const fresh = await apiData<PaymentMethod[]>(`/api/payment-methods/${user.memberId}/sync`, {
+      const fresh = await apiData<PaymentMethod[]>(`/api/payment-methods/${user.memberId}`, {
         method: "POST",
       });
       setMethods(fresh);
@@ -283,7 +264,7 @@ function PaymentMethods() {
     setError(null);
     setNotice(null);
     try {
-      await apiFetch(`/api/payment-methods/${id}/billing`, { method: "POST" });
+      await apiData(`/api/payment-methods/${id}/billing`, { method: "POST" });
 
       await load();
       setNotice("정기결제 카드로 지정되었습니다. 이제 구독을 진행할 수 있어요.");
@@ -308,7 +289,7 @@ function PaymentMethods() {
     setError(null);
     setNotice(null);
     try {
-      await apiFetch(`/api/payment-methods/${id}/billing/terminate`, { method: "POST" });
+      await apiData(`/api/payment-methods/${id}/billing/terminate`, { method: "POST" });
 
       await load();
       setNotice("정기결제 카드가 해지되었습니다.");
