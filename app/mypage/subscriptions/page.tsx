@@ -13,7 +13,7 @@ function Subscriptions() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiData<Subscription[]>("/api/orders/subscriptions")
+    apiData<Subscription[]>("/api/v1/orders/subscriptions")
       .then(setSubs)
       .catch((e) => setError(e instanceof Error ? e.message : "구독을 불러오지 못했습니다."))
       .finally(() => setLoading(false));

@@ -1,27 +1,27 @@
-'use client';
+export default async function PaymentFail({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string; message?: string }>;
+}) {
+  const params = await searchParams;
+  const code = params.code ?? null;
+  const message = params.message ?? null;
 
-import { useSearchParams } from 'next/navigation';
-
-export default function PaymentFail() {
-  const searchParams = useSearchParams();
-  const code = searchParams.get('code');
-  const message = searchParams.get('message');
-
-  const getErrorMessage = (code: string | null, message: string | null) => {
-    if (message) return message;
+  const getErrorMessage = (errorCode: string | null, errorMessage: string | null) => {
+    if (errorMessage) return errorMessage;
 
     const errorMessages: Record<string, string> = {
-      'INVALID_REQUEST': '잘못된 요청입니다.',
-      'UNAUTHORIZED': '인증에 실패했습니다.',
-      'FORBIDDEN': '권한이 없습니다.',
-      'NOT_FOUND': '요청한 리소스를 찾을 수 없습니다.',
-      'INTERNAL_SERVER_ERROR': '서버 오류가 발생했습니다.',
-      'PAYMENT_FAILED': '결제에 실패했습니다.',
-      'ALREADY_PAID': '이미 결제된 주문입니다.',
-      'CANCELLED_PAYMENT': '결제가 취소되었습니다.',
+      INVALID_REQUEST: '잘못된 요청입니다.',
+      UNAUTHORIZED: '인증에 실패했습니다.',
+      FORBIDDEN: '권한이 없습니다.',
+      NOT_FOUND: '요청한 리소스를 찾을 수 없습니다.',
+      INTERNAL_SERVER_ERROR: '서버 오류가 발생했습니다.',
+      PAYMENT_FAILED: '결제에 실패했습니다.',
+      ALREADY_PAID: '이미 결제된 주문입니다.',
+      CANCELLED_PAYMENT: '결제가 취소되었습니다.',
     };
 
-    return errorMessages[code || ''] || '결제 처리 중 오류가 발생했습니다.';
+    return errorMessages[errorCode || ''] || '결제 처리 중 오류가 발생했습니다.';
   };
 
   return (
@@ -64,36 +64,35 @@ export default function PaymentFail() {
       </p>
 
       <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-        <button
-          onClick={() => window.history.back()}
+        <a
+          href="/mypage/payment-methods"
           style={{
             padding: '12px 30px',
             backgroundColor: '#3182f6',
             color: 'white',
-            border: 'none',
             borderRadius: '6px',
-            cursor: 'pointer',
+            textDecoration: 'none',
             fontSize: '16px',
             fontWeight: 'bold',
           }}
         >
           다시 시도
-        </button>
+        </a>
 
-        <button
-          onClick={() => (window.location.href = '/')}
+        <a
+          href="/"
           style={{
             padding: '12px 30px',
             backgroundColor: '#f2f4f6',
             color: '#333d4b',
             border: '1px solid #e5e8eb',
             borderRadius: '6px',
-            cursor: 'pointer',
+            textDecoration: 'none',
             fontSize: '16px',
           }}
         >
           홈으로 돌아가기
-        </button>
+        </a>
       </div>
 
       <p style={{ fontSize: '12px', color: '#999', marginTop: '40px' }}>

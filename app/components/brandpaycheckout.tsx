@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '../lib/auth';
 import { apiData, apiFetch } from '../lib/api';
-import type { TossPaymentsInstance, BrandpayInstance } from '../lib/toss-types';
+import type { BrandpayInstance } from '../lib/toss-types';
 
 interface InitResponse {
   clientKey: string;
   customerKey: string;
   userId: number;
+  redirectUrl: string;
   cards: Array<{ id: string; displayName: string; maskedNumber: string }>;
 }
 
@@ -30,7 +30,6 @@ export default function BrandPayCheckout({
   onError,
   hideDirectPayment = false,
 }: BrandpayCheckoutProps) {
-  const router = useRouter();
   const { user } = useAuth();
   const [init, setInit] = useState<InitResponse | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -64,17 +63,16 @@ export default function BrandPayCheckout({
 
         // 초기화 데이터 받기
         const initData = await apiData<InitResponse>(
-          `/api/v1/payment-methods/brandpay/init?userId=${user.memberId}`
+          '/api/payments/customer-info'
         );
         setInit(initData);
 
         // BrandPay 인스턴스 생성
         if (window.TossPayments) {
           const tossPayments = window.TossPayments(initData.clientKey);
-          const baseUrl = window.location.origin;
           brandpayRef.current = tossPayments.brandpay({
             customerKey: initData.customerKey,
-            redirectUrl: `${baseUrl}/brandpay/callback-auth?userId=${user.memberId}`,
+            redirectUrl: `${initData.redirectUrl}/callback-auth?userId=${user.memberId}`,
           });
         }
 
@@ -115,8 +113,8 @@ export default function BrandPayCheckout({
       const uniqueOrderId = generateRandomString();
       const currency = 'KRW';
 
-      const readyResponse = await apiFetch<{ tossMethodId: string }>(
-        '/api/v1/payment-methods/brandpay/ready',
+      const readyResponse = await apiData<{ tossMethodId: string }>(
+        '/brandpay/payments/ready',
         {
           method: 'POST',
           body: {
@@ -125,7 +123,7 @@ export default function BrandPayCheckout({
             amount,
             currency,
             customerKey: init.customerKey,
-            selectedMethodId: selectedCardId,
+            selectedMethodId: Number(selectedCardId),
           },
           headers: {
             'X-User-Id': String(user!.memberId),
@@ -134,6 +132,9 @@ export default function BrandPayCheckout({
       );
 
       const tossMethodId = readyResponse.tossMethodId;
+      if (!tossMethodId) {
+        throw new Error('브랜드페이 결제수단 정보를 불러오지 못했습니다.');
+      }
       const baseUrl = window.location.origin;
 
       await brandpayRef.current.requestPayment({
@@ -141,9 +142,8 @@ export default function BrandPayCheckout({
         orderId: uniqueOrderId,
         orderName: productName,
         methodId: tossMethodId,
-        successUrl: `${baseUrl}/brandpay/success`,
-        failUrl: `${baseUrl}/brandpay/fail`,
-        customerEmail: `user${user!.memberId}@example.com`,
+        successUrl: `${baseUrl}/payment/success?subscriptionOrderId=${orderId}&customerKey=${init.customerKey}`,
+        failUrl: `${baseUrl}/payment/fail?orderId=${orderId}`,
         customerName: user!.nickname || '고객',
       });
 
@@ -152,111 +152,6 @@ export default function BrandPayCheckout({
       const msg = err instanceof Error ? err.message : '결제 처리 중 오류가 발생했습니다.';
       setError(msg);
       onError?.(msg);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleAddPaymentMethod = async () => {
-    if (!brandpayRef.current) return;
-    setProcessing(true);
-    try {
-      // addPaymentMethod() 호출 시 BrandPay 가입 페이지로 자동 리다이렉트됨
-      // 가입 완료 후 redirectUrl로 콜백되고, 그 페이지에서 accessToken을 획득함
-      await brandpayRef.current.addPaymentMethod();
-    } catch (err) {
-      console.error('결제수단 추가 실패:', err);
-      setError('결제수단 추가 실패');
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleChangeOneTouchPay = async () => {
-    if (!brandpayRef.current) return;
-    setProcessing(true);
-    try {
-      await brandpayRef.current.changeOneTouchPay();
-      alert('원터치페이 설정이 변경되었습니다.');
-    } catch (err) {
-      console.error('원터치페이 설정 변경 실패:', err);
-      setError('원터치페이 설정 변경 실패');
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleChangePassword = async () => {
-    if (!brandpayRef.current) return;
-    setProcessing(true);
-    try {
-      await brandpayRef.current.changePassword();
-      alert('비밀번호 변경이 완료되었습니다.');
-    } catch (err) {
-      console.error('비밀번호 변경 실패:', err);
-      setError('비밀번호 변경 실패');
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleOpenSettings = async () => {
-    if (!brandpayRef.current) return;
-    setProcessing(true);
-    try {
-      await brandpayRef.current.openSettings();
-    } catch (err) {
-      console.error('설정 열기 실패:', err);
-      setError('설정 열기 실패');
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleRequestBillingAuth = async () => {
-    if (!brandpayRef.current || !init) return;
-    setProcessing(true);
-    try {
-      await brandpayRef.current.requestBillingAuth();
-      const baseUrl = window.location.origin;
-      const response = await fetch(`${baseUrl}/api/v1/payment-methods/brandpay/billing-auth/success`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerKey: init.customerKey }),
-      });
-      if (response.ok) {
-        alert('정기 자동결제 약관동의가 완료되었습니다.');
-        window.location.reload();
-      }
-    } catch (err) {
-      console.error('정기 결제 인증 실패:', err);
-      setError('정기 결제 인증 실패');
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleTerminateBillingAuth = async () => {
-    if (!brandpayRef.current || !init) return;
-    if (!confirm('정말 정기 자동결제를 해지하시겠습니까?')) return;
-
-    setProcessing(true);
-    try {
-      const baseUrl = window.location.origin;
-      const response = await fetch(`${baseUrl}/api/v1/payment-methods/brandpay/billing-auth/terminate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerKey: init.customerKey }),
-      });
-      if (response.ok) {
-        alert('정기 자동결제가 해지되었습니다.');
-        window.location.reload();
-      } else {
-        setError('정기 자동결제 해지 실패');
-      }
-    } catch (err) {
-      console.error('정기 자동결제 해지 실패:', err);
-      setError('정기 자동결제 해지 실패');
     } finally {
       setProcessing(false);
     }
@@ -294,14 +189,6 @@ export default function BrandPayCheckout({
           </p>
         </div>
 
-        <button
-          className="btn btn-primary btn-block"
-          onClick={handleAddPaymentMethod}
-          disabled={processing}
-          style={{ padding: '12px 0', fontSize: 16, fontWeight: 600 }}
-        >
-          {processing ? '추가 중…' : '결제수단 추가'}
-        </button>
 
         {error && <div className="alert alert-error">{error}</div>}
       </div>
@@ -363,16 +250,6 @@ export default function BrandPayCheckout({
           </button>
         )}
 
-        <button
-          className="btn btn-ghost btn-block"
-          onClick={handleAddPaymentMethod}
-          disabled={processing}
-          style={{ fontSize: 14 }}
-        >
-          결제수단 추가
-        </button>
-
-        {/* 추가 기능 메뉴 */}
         <div
           style={{
             display: 'grid',
@@ -383,54 +260,8 @@ export default function BrandPayCheckout({
             borderTop: '1px solid #e5e8eb',
           }}
         >
-          <button
-            className="btn btn-sm btn-ghost"
-            onClick={handleChangeOneTouchPay}
-            disabled={processing}
-            style={{ fontSize: 12 }}
-          >
-            원터치페이
-          </button>
-          <button
-            className="btn btn-sm btn-ghost"
-            onClick={handleChangePassword}
-            disabled={processing}
-            style={{ fontSize: 12 }}
-          >
-            비밀번호변경
-          </button>
-          <button
-            className="btn btn-sm btn-ghost"
-            onClick={handleOpenSettings}
-            disabled={processing}
-            style={{ fontSize: 12 }}
-          >
-            설정 열기
-          </button>
-          <button
-            className="btn btn-sm btn-ghost"
-            onClick={handleRequestBillingAuth}
-            disabled={processing}
-            style={{ fontSize: 12, backgroundColor: '#f0f5ff', color: '#1b64da' }}
-          >
-            정기결제 동의
-          </button>
         </div>
 
-        <button
-          className="btn btn-sm btn-ghost"
-          onClick={handleTerminateBillingAuth}
-          disabled={processing}
-          style={{
-            marginTop: 8,
-            fontSize: 12,
-            backgroundColor: '#fff5f5',
-            color: '#d32f2f',
-            border: '1px solid #ffcdd2',
-          }}
-        >
-          정기결제 해지
-        </button>
       </div>
     </div>
   );

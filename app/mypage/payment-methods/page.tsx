@@ -116,7 +116,6 @@ function PaymentMethods() {
       const brandpay = tossPayments.brandpay({
         customerKey: customerInfo.customerKey,
         redirectUrl: `${customerInfo.redirectUrl}/callback-auth?userId=${customerInfo.userId}`
-        // redirectUrl: `http://localhost:3000/payment/callback-auth?userId=${customerInfo.userId}`,
       });
       await brandpay.addPaymentMethod();
 
@@ -136,6 +135,7 @@ function PaymentMethods() {
       // @ts-ignore
       const tossPayments = window.TossPayments(customerInfo.clientKey);
       // @ts-ignore
+      console.log(customerInfo.redirectUrl);
       const brandpay = tossPayments.brandpay({
         customerKey: customerInfo.customerKey,
         redirectUrl: `${customerInfo.redirectUrl}/callback-auth?userId=${customerInfo.userId}`,
@@ -237,7 +237,7 @@ function PaymentMethods() {
     try {
       if (!user) return null;
       const fresh = await apiData<PaymentMethod[]>(`/api/payment-methods/${user.memberId}`, {
-        method: "POST",
+        method: "GET",
       });
       setMethods(fresh);
       setNotice(
@@ -300,10 +300,6 @@ function PaymentMethods() {
       setBusyId(null);
     }
   }
-
-  const generateRandomString = () => {
-    return btoa(Math.random().toString()).slice(0, 20);
-  };
 
   return (
     <div className="container-narrow">

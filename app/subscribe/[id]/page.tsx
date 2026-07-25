@@ -22,31 +22,31 @@ function Subscribe({ pid }: { pid: number }) {
   const { user } = useAuth();
   const name = q.get("name") ?? "구독권";
   const price = Number(q.get("price") ?? 0);
-  const paymentApiUrl = process.env.NEXT_PUBLIC_PAYMENT_API_URL ?? "http://localhost:8300";
 
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<OrderResult | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    fetch(`${paymentApiUrl}/api/v1/payment-methods/${user.memberId}`, {
-      headers: { "X-User-Id": String(user.memberId) },
-    })
-      .then((res) => res.json())
-      .then((result) => {
-        const all = result.data || [];
-        // 정기 구독은 BILLING 으로 지정된 카드만 승인된다(payment-service BillingService).
-        const m = all.filter((x: PaymentMethod) => x.type === "BILLING");
-        setMethods(m);
-        const def = m.find((x: PaymentMethod) => x.isDefault) ?? m[0];
-        if (def) setSelected(def.id);
-      })
-      .catch(() => setMethods([]))
-      .finally(() => setLoading(false));
+    apiData<PaymentMethod[]>(`/api/payment-methods/${user.memberId}`)
+        .then((result) => {
+          const all = result || [];
+
+          const m = all.filter((x: PaymentMethod) => x.type === "BILLING");
+          setMethods(m);
+
+          const def = m.find((x: PaymentMethod) => x.isDefault) ?? m[0];
+          if (def) setSelected(def.id);
+        })
+        .catch(() => {
+          setMethods([]);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
   }, [user]);
 
   async function subscribe() {
@@ -54,39 +54,20 @@ function Subscribe({ pid }: { pid: number }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await apiFetch<ApiResponse<OrderResult>>("/api/orders/subscriptions", {
+      const res = await apiFetch<ApiResponse<OrderResult>>("/api/v1/orders/subscriptions", {
         method: "POST",
         headers: { "Idempotency-Key": uuid() },
         body: { productId: pid, paymentMethodId: selected },
       });
-      setDone(res.data);
+      const order = res.data;
+      router.push(
+        `/payment/brandpay-checkout?orderId=${order.orderId}&subscriptionId=${order.subscriptionId}&name=${encodeURIComponent(name)}&price=${price}`
+      );
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "구독 신청에 실패했습니다.");
     } finally {
       setBusy(false);
     }
-  }
-
-  if (done) {
-    return (
-      <div className="container-narrow">
-        <div className="card" style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 44, marginBottom: 8 }}>🎉</div>
-          <h2>구독 신청이 접수되었어요</h2>
-          <p className="subtitle">
-            결제가 확인되면 채팅이 열립니다. 잠시 후 내 구독에서 상태를 확인하세요.
-          </p>
-          <div className="stack">
-            <button className="btn btn-primary" onClick={() => router.push("/mypage/subscriptions")}>
-              내 구독 보기
-            </button>
-            <button className="btn btn-ghost" onClick={() => router.push("/")}>
-              계속 둘러보기
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return (
