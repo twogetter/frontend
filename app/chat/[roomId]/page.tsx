@@ -35,7 +35,7 @@ function Room({ roomId }: { roomId: number }) {
   const loadHistory = useCallback(async () => {
     try {
       const data = await apiData<ChatMessage[]>(
-        `/api/chat/rooms/${roomId}/messages?size=50`
+        `/api/chats/rooms/${roomId}/messages?size=50`
       );
       merge(data);
       setError(null);
@@ -87,7 +87,7 @@ function Room({ roomId }: { roomId: number }) {
     try {
       // 전송은 REST(하이브리드). 저장 후 백엔드가 상대 대역으로 WS 브로드캐스트한다.
       const res = await apiFetch<ApiResponse<ChatMessage>>(
-        `/api/chat/rooms/${roomId}/messages`,
+        `/api/chats/rooms/${roomId}/messages`,
         { method: "POST", body: { content, messageType: "TEXT" } }
       );
       setText("");
@@ -99,15 +99,20 @@ function Room({ roomId }: { roomId: number }) {
     }
   }
 
+  const isArtist = user?.role === "ARTIST" || user?.role === "BUSINESS";
+
   return (
     <div className="container">
-      <div className="between" style={{ marginBottom: 8 }}>
+      <div className="between" style={{ marginBottom: 8, alignItems: "center" }}>
         <button className="btn btn-sm btn-ghost" onClick={() => router.push("/chat")}>
           ← 채팅 목록
         </button>
-        <span className={`badge ${live ? "badge-active" : "badge-muted"}`}>
-          {live ? "● 실시간" : "○ 폴링"}
-        </span>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {isArtist && <span className="badge badge-primary">👑 아티스트 ({user?.nickname})</span>}
+          <span className={`badge ${live ? "badge-active" : "badge-muted"}`}>
+            {live ? "● 실시간" : "○ 폴링"}
+          </span>
+        </div>
       </div>
 
       <div className="chat-wrap">
@@ -127,6 +132,11 @@ function Room({ roomId }: { roomId: number }) {
                   key={m.id}
                   style={{ display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}
                 >
+                  {!mine && (
+                    <span style={{ fontSize: "0.75rem", color: "#888", marginBottom: 2 }}>
+                      {isArtist ? "💬 팬" : "🌟 아티스트"}
+                    </span>
+                  )}
                   <div className={`bubble ${mine ? "bubble-me" : "bubble-them"}`}>
                     {m.content}
                   </div>
