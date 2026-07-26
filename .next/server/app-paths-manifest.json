@@ -1,7 +1,0 @@
-{
-  "/mypage/payment-methods/page": "app/mypage/payment-methods/page.js",
-  "/subscribe/[id]/page": "app/subscribe/[id]/page.js",
-  "/page": "app/page.js",
-  "/login/page": "app/login/page.js",
-  "/mypage/page": "app/mypage/page.js"
-}
